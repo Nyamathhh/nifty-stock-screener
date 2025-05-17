@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
 import requests
-from pandas_datareader import data as pdr
+import yfinance as yf  # ✅ Replaced pandas_datareader
 
 # Function to calculate RSI
 def calculate_rsi(series, period=14):
@@ -44,7 +44,7 @@ def get_filtered_stocks():
     results = []
     for stock in symbols:
         try:
-            df = pdr.get_data_yahoo(stock, start=start_date, end=end_date)
+            df = yf.download(stock, start=start_date, end=end_date)
             if df.empty or len(df) < 22:
                 continue
 
@@ -70,7 +70,7 @@ def get_filtered_stocks():
                     'Stop Loss Price': round(stop_loss_price, 2),
                     'SL Hit?': sl_hit
                 })
-        except Exception as e:
+        except Exception:
             continue
 
     df_final = pd.DataFrame(results)
