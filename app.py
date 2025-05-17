@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import yfinance as yf
 import os
-import time
+from streamlit_autorefresh import st_autorefresh  # ✅ New import
 
 # Function to calculate RSI
 def calculate_rsi(series, period=14):
@@ -22,7 +22,7 @@ def calculate_rsi(series, period=14):
 def load_nifty500_symbols():
     url = 'https://raw.githubusercontent.com/Nyamathhh/nifty-stock-screener/main/nifty500.csv'
     df = pd.read_csv(url)
-    return df.head(100)['Symbol'].tolist()  # Top 100 only
+    return df.head(100)['Symbol'].tolist()
 
 # Streamlit App
 st.set_page_config(page_title="NIFTY 500 Screener", layout="wide")
@@ -36,14 +36,18 @@ start_date = end_date - timedelta(days=60)
 with st.sidebar:
     st.header("Settings")
     capital = st.number_input("Investment Capital (INR)", value=100000)
-    risk_per_trade_pct = st.slider("Risk per Trade (%)", min_value=1, max_value=10, value=5)
-    stop_loss_pct = st.slider("Stop Loss (%)", min_value=1, max_value=10, value=5)
-    rsi_min = st.slider("Min RSI", min_value=0, max_value=100, value=30)
-    rsi_max = st.slider("Max RSI", min_value=0, max_value=100, value=75)
-    min_return_1m = st.slider("Minimum 1M Return (%)", min_value=-10, max_value=10, value=0)
+    risk_per_trade_pct = st.slider("Risk per Trade (%)", 1, 10, 5)
+    stop_loss_pct = st.slider("Stop Loss (%)", 1, 10, 5)
+    rsi_min = st.slider("Min RSI", 0, 100, 30)
+    rsi_max = st.slider("Max RSI", 0, 100, 75)
+    min_return_1m = st.slider("Minimum 1M Return (%)", -10, 10, 0)
     min_volume = st.number_input("Minimum Daily Volume", value=1000000)
-    refresh_interval = st.slider("Auto-refresh interval (seconds)", min_value=0, max_value=3600, value=0)
+    refresh_interval = st.slider("Auto-refresh interval (seconds)", 0, 3600, 0)
     run_button = st.button("Run Screener")
+
+# Optional auto-refresh trigger
+if refresh_interval > 0:
+    st_autorefresh(interval=refresh_interval * 1000, limit=None, key="auto-refresh")
 
 @st.cache_data(show_spinner=False)
 def get_filtered_stocks():
@@ -99,20 +103,15 @@ def log_performance(df):
         df = pd.concat([prev, df], ignore_index=True)
     df.to_csv(history_file, index=False)
 
-# Run analysis
-should_run = run_button or refresh_interval > 0
-if should_run:
-    if refresh_interval > 0:
-        st.experimental_rerun()
-        time.sleep(refresh_interval)
-
+# Run
+if run_button or refresh_interval > 0:
     top_stocks = get_filtered_stocks()
     st.success("Top 10 Momentum Stocks with RSI Filter")
 
     if not top_stocks.empty:
         log_performance(top_stocks.drop(columns=['Symbol']))
-        colored_df = top_stocks.style.background_gradient(cmap='YlGnBu', subset=['1M Return (%)', '2W Return (%)', 'RSI'])
-        st.dataframe(colored_df, use_container_width=True)
+        styled_df = top_stocks.style.background_gradient(cmap='YlGnBu', subset=['1M Return (%)', '2W Return (%)', 'RSI'])
+        st.dataframe(styled_df, use_container_width=True)
 
         csv = top_stocks.drop(columns=['Symbol']).to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download CSV", csv, "top_stocks.csv", "text/csv")
