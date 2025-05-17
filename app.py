@@ -35,6 +35,9 @@ with st.sidebar:
     capital = st.number_input("Investment Capital (INR)", value=100000)
     risk_per_trade_pct = st.slider("Risk per Trade (%)", min_value=1, max_value=10, value=5)
     stop_loss_pct = st.slider("Stop Loss (%)", min_value=1, max_value=10, value=5)
+    rsi_min = st.slider("Min RSI", min_value=0, max_value=100, value=30)
+    rsi_max = st.slider("Max RSI", min_value=0, max_value=100, value=75)
+    min_return_1m = st.slider("Minimum 1M Return (%)", min_value=-10, max_value=10, value=0)
     run_button = st.button("Run Screener")
 
 @st.cache_data(show_spinner=False)
@@ -60,7 +63,7 @@ def get_filtered_stocks():
             stop_loss_price = buy_price * (1 - stop_loss_pct / 100)
             sl_hit = latest_price < stop_loss_price
 
-            if rsi > 40 and rsi < 70 and return_1m > 0:
+            if rsi_min < rsi < rsi_max and return_1m > min_return_1m:
                 results.append({
                     'Stock': stock.replace('.NS', ''),
                     'Latest Price': round(latest_price, 2),
@@ -98,4 +101,4 @@ if run_button:
 
         st.dataframe(styled_df, use_container_width=True)
     else:
-        st.warning("No stocks met the criteria today.")
+        st.warning("No stocks met the criteria today. Try adjusting RSI or return filters.")
