@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import yfinance as yf
 import os
-from streamlit_autorefresh import st_autorefresh  # ✅ New import
+from streamlit_autorefresh import st_autorefresh
 
 # Function to calculate RSI
 def calculate_rsi(series, period=14):
@@ -50,7 +50,7 @@ if refresh_interval > 0:
     st_autorefresh(interval=refresh_interval * 1000, limit=None, key="auto-refresh")
 
 @st.cache_data(show_spinner=False)
-def get_filtered_stocks():
+def get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_pct):
     results = []
     all_data = yf.download(symbols, start=start_date, end=end_date, group_by="ticker", threads=True)
     total = len(symbols)
@@ -105,7 +105,7 @@ def log_performance(df):
 
 # Run
 if run_button or refresh_interval > 0:
-    top_stocks = get_filtered_stocks()
+    top_stocks = get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_pct)
     st.success("Top 10 Momentum Stocks with RSI Filter")
 
     if not top_stocks.empty:
