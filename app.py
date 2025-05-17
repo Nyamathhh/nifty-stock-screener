@@ -2,7 +2,8 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
 import requests
-import yfinance as yf  # ✅ Replaced pandas_datareader
+import yfinance as yf
+import io
 
 # Function to calculate RSI
 def calculate_rsi(series, period=14):
@@ -15,11 +16,16 @@ def calculate_rsi(series, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Load NIFTY 500 list from NSE
+# Load NIFTY 500 list from NSE with headers to bypass bot protection
 @st.cache_data
 def load_nifty500_symbols():
     url = 'https://archives.nseindia.com/content/indices/ind_nifty500list.csv'
-    df = pd.read_csv(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    df = pd.read_csv(io.StringIO(response.text))
     symbols = [symbol + ".NS" for symbol in df['Symbol'].tolist()]
     return symbols
 
