@@ -14,7 +14,7 @@ def calculate_rsi(series, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Load NIFTY 500 symbols from your GitHub-hosted CSV
+# Load NIFTY 500 symbols from GitHub CSV
 @st.cache_data
 def load_nifty500_symbols():
     url = 'https://raw.githubusercontent.com/Nyamathhh/nifty-stock-screener/main/nifty500.csv'
@@ -22,7 +22,7 @@ def load_nifty500_symbols():
     symbols = [symbol + ".NS" for symbol in df['Symbol'].tolist()]
     return symbols
 
-# Streamlit App UI
+# Streamlit App
 st.set_page_config(page_title="NIFTY 500 Screener", layout="wide")
 st.title("📈 NIFTY 500 Stock Screener Dashboard")
 st.markdown("Analyze top momentum stocks with RSI and price performance filters.")
@@ -73,9 +73,13 @@ def get_filtered_stocks():
             continue
 
     df_final = pd.DataFrame(results)
+    if df_final.empty:
+        return pd.DataFrame()  # prevent KeyError on empty sort
+
     top_stocks = df_final.sort_values(by='1M Return (%)', ascending=False).head(10)
     return top_stocks
 
+# Run analysis
 if run_button:
     top_stocks = get_filtered_stocks()
     st.success("Top 10 Momentum Stocks with RSI Filter")
