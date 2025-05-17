@@ -1,9 +1,7 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
-import requests
 import yfinance as yf
-import io
 
 # Function to calculate RSI
 def calculate_rsi(series, period=14):
@@ -16,20 +14,15 @@ def calculate_rsi(series, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Load NIFTY 500 list from NSE with headers to bypass bot protection
+# Load NIFTY 500 symbols from your GitHub-hosted CSV
 @st.cache_data
 def load_nifty500_symbols():
-    url = 'https://archives.nseindia.com/content/indices/ind_nifty500list.csv'
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    df = pd.read_csv(io.StringIO(response.text))
+    url = 'https://raw.githubusercontent.com/Nyamathhh/nifty-stock-screener/main/nifty500.csv'
+    df = pd.read_csv(url)
     symbols = [symbol + ".NS" for symbol in df['Symbol'].tolist()]
     return symbols
 
-# Streamlit App
+# Streamlit App UI
 st.set_page_config(page_title="NIFTY 500 Screener", layout="wide")
 st.title("📈 NIFTY 500 Stock Screener Dashboard")
 st.markdown("Analyze top momentum stocks with RSI and price performance filters.")
