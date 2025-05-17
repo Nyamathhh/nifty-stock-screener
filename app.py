@@ -35,22 +35,22 @@ start_date = end_date - timedelta(days=60)
 
 with st.sidebar:
     st.header("Settings")
-    capital = st.number_input("Investment Capital (INR)", value=100000)
-    risk_per_trade_pct = st.slider("Risk per Trade (%)", 1, 10, 5)
-    stop_loss_pct = st.slider("Stop Loss (%)", 1, 10, 5)
-    rsi_min = st.slider("Min RSI", 0, 100, 30)
-    rsi_max = st.slider("Max RSI", 0, 100, 75)
-    min_return_1m = st.slider("Minimum 1M Return (%)", -10, 10, 0)
-    min_volume = st.number_input("Minimum Daily Volume", value=1000000)
-    refresh_interval = st.slider("Auto-refresh interval (seconds)", 0, 3600, 0)
+    capital = st.number_input("Investment Capital (INR)", value=100000, help="Total amount you want to invest.")
+    risk_per_trade_pct = st.slider("Risk per Trade (%)", 1, 10, 5, help="Maximum percentage of your capital to risk per stock.")
+    stop_loss_pct = st.slider("Stop Loss (%)", 1, 10, 5, help="Stop loss percentage per trade.")
+    rsi_min = st.slider("Min RSI", 0, 100, 30, help="Minimum RSI to filter oversold stocks.")
+    rsi_max = st.slider("Max RSI", 0, 100, 75, help="Maximum RSI to filter overbought stocks.")
+    min_return_1m = st.slider("Minimum 1M Return (%)", -10, 10, 0, help="Minimum 1-month return percentage.")
+    min_volume = st.number_input("Minimum Daily Volume", value=1000000, help="Minimum daily traded volume.")
+    top_n = st.selectbox("Number of Top Stocks to Allocate Capital", options=[1, 5, 10, 20], index=2, help="Select how many top stocks to invest in.")
+    refresh_interval = st.slider("Auto-refresh interval (seconds)", 0, 3600, 0, help="How often the app should auto-refresh.")
     run_button = st.button("Run Screener")
 
-# Optional auto-refresh trigger
 if refresh_interval > 0:
     st_autorefresh(interval=refresh_interval * 1000, limit=None, key="auto-refresh")
 
 @st.cache_data(show_spinner=False)
-def get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_pct):
+def get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_pct, top_n):
     results = []
     all_data = yf.download(symbols, start=start_date, end=end_date, group_by="ticker", threads=True)
     total = len(symbols)
@@ -92,9 +92,8 @@ def get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_p
     df_final = pd.DataFrame(results)
     if df_final.empty:
         return pd.DataFrame()
-    return df_final.sort_values(by='1M Return (%)', ascending=False).head(10)
+    return df_final.sort_values(by='1M Return (%)', ascending=False).head(top_n)
 
-# Log performance
 def log_performance(df):
     df['Date'] = datetime.today().strftime('%Y-%m-%d')
     history_file = 'portfolio_history.csv'
@@ -103,13 +102,20 @@ def log_performance(df):
         df = pd.concat([prev, df], ignore_index=True)
     df.to_csv(history_file, index=False)
 
-# Run
+def recommend_quantities(df, capital):
+    allocation = capital / len(df)
+    df['Recommended Qty'] = (allocation // df['Latest Price']).astype(int)
+    df['Allocated (INR)'] = df['Recommended Qty'] * df['Latest Price']
+    return df
+
 if run_button or refresh_interval > 0:
-    top_stocks = get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_pct)
-    st.success("Top 10 Momentum Stocks with RSI Filter")
+    top_stocks = get_filtered_stocks(rsi_min, rsi_max, min_return_1m, min_volume, stop_loss_pct, top_n)
+    st.success("Top Stocks with Allocation Plan")
 
     if not top_stocks.empty:
+        top_stocks = recommend_quantities(top_stocks, capital)
         log_performance(top_stocks.drop(columns=['Symbol']))
+
         styled_df = top_stocks.style.background_gradient(cmap='YlGnBu', subset=['1M Return (%)', '2W Return (%)', 'RSI'])
         st.dataframe(styled_df, use_container_width=True)
 
