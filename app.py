@@ -19,15 +19,14 @@ def calculate_rsi(series, period=14):
 def load_nifty500_symbols():
     url = 'https://raw.githubusercontent.com/Nyamathhh/nifty-stock-screener/main/nifty500.csv'
     df = pd.read_csv(url)
-    symbols = [symbol + ".NS" for symbol in df['Symbol'].tolist()]
-    return symbols
+    return df.head(100)['Symbol'].tolist()  # Top 100 only
 
 # Streamlit App
 st.set_page_config(page_title="NIFTY 500 Screener", layout="wide")
 st.title("📈 NIFTY 500 Stock Screener Dashboard")
-st.markdown("Analyze top momentum stocks with RSI and price performance filters.")
+st.markdown("Analyze top 100 momentum stocks with RSI and price performance filters.")
 
-symbols = load_nifty500_symbols()
+symbols = [s + ".NS" for s in load_nifty500_symbols()]
 end_date = datetime.today()
 start_date = end_date - timedelta(days=60)
 
@@ -41,9 +40,13 @@ with st.sidebar:
 @st.cache_data(show_spinner=False)
 def get_filtered_stocks():
     results = []
-    for stock in symbols:
+    all_data = yf.download(symbols, start=start_date, end=end_date, group_by="ticker", threads=True)
+    total = len(symbols)
+    progress = st.progress(0)
+
+    for idx, stock in enumerate(symbols):
         try:
-            df = yf.download(stock, start=start_date, end=end_date)
+            df = all_data[stock].dropna()
             if df.empty or len(df) < 22:
                 continue
 
@@ -71,13 +74,12 @@ def get_filtered_stocks():
                 })
         except Exception:
             continue
+        progress.progress((idx + 1) / total)
 
     df_final = pd.DataFrame(results)
     if df_final.empty:
-        return pd.DataFrame()  # prevent KeyError on empty sort
-
-    top_stocks = df_final.sort_values(by='1M Return (%)', ascending=False).head(10)
-    return top_stocks
+        return pd.DataFrame()
+    return df_final.sort_values(by='1M Return (%)', ascending=False).head(10)
 
 # Run analysis
 if run_button:
