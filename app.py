@@ -1,7 +1,10 @@
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import yfinance as yf
+import os
+import time
 
 # Function to calculate RSI
 def calculate_rsi(series, period=14):
@@ -24,7 +27,7 @@ def load_nifty500_symbols():
 # Streamlit App
 st.set_page_config(page_title="NIFTY 500 Screener", layout="wide")
 st.title("📈 NIFTY 500 Stock Screener Dashboard")
-st.markdown("Analyze top 100 momentum stocks with RSI and price performance filters.")
+st.markdown("Analyze top 100 momentum stocks with RSI, return, volume, and price charts.")
 
 symbols = [s + ".NS" for s in load_nifty500_symbols()]
 end_date = datetime.today()
@@ -38,6 +41,8 @@ with st.sidebar:
     rsi_min = st.slider("Min RSI", min_value=0, max_value=100, value=30)
     rsi_max = st.slider("Max RSI", min_value=0, max_value=100, value=75)
     min_return_1m = st.slider("Minimum 1M Return (%)", min_value=-10, max_value=10, value=0)
+    min_volume = st.number_input("Minimum Daily Volume", value=1000000)
+    refresh_interval = st.slider("Auto-refresh interval (seconds)", min_value=0, max_value=3600, value=0)
     run_button = st.button("Run Screener")
 
 @st.cache_data(show_spinner=False)
@@ -63,9 +68,10 @@ def get_filtered_stocks():
             stop_loss_price = buy_price * (1 - stop_loss_pct / 100)
             sl_hit = latest_price < stop_loss_price
 
-            if rsi_min < rsi < rsi_max and return_1m > min_return_1m:
+            if rsi_min < rsi < rsi_max and return_1m > min_return_1m and volume > min_volume:
                 results.append({
                     'Stock': stock.replace('.NS', ''),
+                    'Symbol': stock,
                     'Latest Price': round(latest_price, 2),
                     '1M Return (%)': round(return_1m, 2),
                     '2W Return (%)': round(return_2w, 2),
@@ -84,21 +90,54 @@ def get_filtered_stocks():
         return pd.DataFrame()
     return df_final.sort_values(by='1M Return (%)', ascending=False).head(10)
 
+# Log performance
+def log_performance(df):
+    df['Date'] = datetime.today().strftime('%Y-%m-%d')
+    history_file = 'portfolio_history.csv'
+    if os.path.exists(history_file):
+        prev = pd.read_csv(history_file)
+        df = pd.concat([prev, df], ignore_index=True)
+    df.to_csv(history_file, index=False)
+
 # Run analysis
-if run_button:
+should_run = run_button or refresh_interval > 0
+if should_run:
+    if refresh_interval > 0:
+        st.experimental_rerun()
+        time.sleep(refresh_interval)
+
     top_stocks = get_filtered_stocks()
     st.success("Top 10 Momentum Stocks with RSI Filter")
 
     if not top_stocks.empty:
-        styled_df = top_stocks.style.format({
-            'Latest Price': "₹{:.2f}",
-            '1M Return (%)': "{:.2f}%",
-            '2W Return (%)': "{:.2f}%",
-            'RSI': "{:.2f}",
-            'Buy Price': "₹{:.2f}",
-            'Stop Loss Price': "₹{:.2f}"
-        }).background_gradient(cmap='YlGnBu', subset=['1M Return (%)', '2W Return (%)', 'RSI'])
+        log_performance(top_stocks.drop(columns=['Symbol']))
+        colored_df = top_stocks.style.background_gradient(cmap='YlGnBu', subset=['1M Return (%)', '2W Return (%)', 'RSI'])
+        st.dataframe(colored_df, use_container_width=True)
 
-        st.dataframe(styled_df, use_container_width=True)
+        csv = top_stocks.drop(columns=['Symbol']).to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download CSV", csv, "top_stocks.csv", "text/csv")
+
+        st.subheader("📊 Stock Charts")
+        cols = st.columns(2)
+        for i, row in top_stocks.iterrows():
+            with cols[i % 2]:
+                data = yf.download(row['Symbol'], start=start_date, end=end_date)
+                data['RSI'] = calculate_rsi(data['Close'])
+
+                fig, ax1 = plt.subplots(figsize=(6, 3))
+                ax1.plot(data.index, data['Close'], label='Close Price', color='blue')
+                ax1.set_ylabel('Price', color='blue')
+                ax1.tick_params(axis='y', labelcolor='blue')
+                ax1.set_title(row['Stock'])
+
+                ax2 = ax1.twinx()
+                ax2.plot(data.index, data['RSI'], label='RSI', color='orange')
+                ax2.set_ylabel('RSI', color='orange')
+                ax2.tick_params(axis='y', labelcolor='orange')
+                ax2.axhline(70, color='red', linestyle='--', linewidth=0.5)
+                ax2.axhline(30, color='green', linestyle='--', linewidth=0.5)
+
+                fig.tight_layout()
+                st.pyplot(fig)
     else:
-        st.warning("No stocks met the criteria today. Try adjusting RSI or return filters.")
+        st.warning("No stocks met the criteria today. Try adjusting filters.")
